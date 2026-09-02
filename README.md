@@ -101,9 +101,15 @@ resumeweave/
 
 ## Windows 下载
 
-[**下载 Windows 安装版或免安装版 →**](https://github.com/shuhuihuang0704/resumeweave/releases/latest)
+[**下载 Windows 安装版或免安装版 →**](https://github.com/shuhuihuang0704/resumeweave/releases/tag/windows-v1.0.0)
 
 支持 Windows 10/11 x64，详细说明见 [WINDOWS.md](./WINDOWS.md)。
+
+## macOS 下载
+
+[**下载 Apple Silicon 或 Intel Mac 版本 →**](https://github.com/shuhuihuang0704/resumeweave/releases/tag/macos-v1.0.0)
+
+提供 `.dmg` 与 `.zip`，详细说明见 [MACOS.md](./MACOS.md)。
 
 ---
 
