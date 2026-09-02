@@ -99,6 +99,12 @@ resumeweave/
 3. **先保证内容清楚**，再考虑术语、关键词和视觉包装。
 4. **生成后仍可编辑**，用户始终拥有最终决定权。
 
+## Windows 下载
+
+[**下载 Windows 安装版或免安装版 →**](https://github.com/shuhuihuang0704/resumeweave/releases/latest)
+
+支持 Windows 10/11 x64，详细说明见 [WINDOWS.md](./WINDOWS.md)。
+
 ---
 
 <div align="center">
