@@ -446,23 +446,6 @@ function buildFallbackRequirements(target: string, form: FormData, candidateType
   return requirements.map((item) => ({ ...item, covered: item.signals.some((signal) => source.includes(signal.toLowerCase().replace(/\s+/g, ""))) }));
 }
 
-const PLAIN_LANGUAGE_REPLACEMENTS: Array<[RegExp, string]> = [
-  [/\bUGC\b/gi, "用户自己创作的内容"], [/\bPVE\b/gi, "玩家对电脑的玩法"], [/\bPVP\b/gi, "玩家对战玩法"],
-  [/\bBOM\b/gi, "零部件清单"], [/\bROI\b/gi, "投入产出比"], [/\bSQL\b/gi, "数据库查询工具 SQL"],
-  [/\bPLG\b/gi, "靠产品本身吸引和留住用户"], [/\bSEO\b/gi, "让内容更容易被搜索到"],
-  [/\bLLM\b/gi, "大语言模型"], [/\bAgent\b/gi, "能自己分步骤办事的智能助手"],
-  [/\bRAG\b/gi, "先查资料再回答的技术"], [/\bSFT\b/gi, "用示例教模型回答"], [/\bRLHF\b/gi, "根据人工反馈改进模型"],
-  [/\bSaaS\b/gi, "企业按月或按年订阅的软件"], [/A\s*\/\s*B\s*(?:实验|测试)?/gi, "两个方案对比测试"],
-  [/漏斗分析/g, "逐步分析用户从进入到完成目标的过程"], [/归因分析/g, "找出结果变化的原因"],
-  [/显著性/g, "确认差异不是偶然"], [/评测集/g, "用来测试效果的一组题目或数据"], [/基线/g, "改进前的数据"],
-  [/量化/g, "用数字说明"], [/交付物/g, "最后做出来的东西"], [/职责边界/g, "你具体负责到哪一步"],
-  [/复盘/g, "事后总结"], [/落地/g, "真正做出来"], [/协同/g, "一起配合"],
-];
-
-function plainAnalysisText(value: string) {
-  return PLAIN_LANGUAGE_REPLACEMENTS.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value);
-}
-
 function polishBullet(value: string) {
   let line = value.trim().replace(/^[·•\-—\d.、)）\s]+/, "").replace(/[。；;]+$/, "");
   ACTION_REPLACEMENTS.forEach(([pattern, replacement]) => { line = line.replace(pattern, replacement); });
@@ -652,13 +635,25 @@ function plainResume(identity: ResumeIdentity, draft: ResumeDraft, candidateType
 }
 
 export default function Home() {
-  const [form, setForm] = useState<FormData>(EMPTY_FORM);
+  const [form, setForm] = useState<FormData>(() => {
+    if (typeof window === "undefined") return EMPTY_FORM;
+    try {
+      const stored = window.localStorage.getItem("resumeweave-form");
+      return stored ? { ...EMPTY_FORM, ...JSON.parse(stored) as Partial<FormData> } : EMPTY_FORM;
+    } catch {
+      return EMPTY_FORM;
+    }
+  });
   const [candidateType, setCandidateType] = useState<CandidateType>("student");
   const [stage, setStage] = useState<"edit" | "working" | "preview">("edit");
   const [template, setTemplate] = useState<TemplateName>("classic");
   const [copied, setCopied] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
+  const [savedAt, setSavedAt] = useState(() => {
+    if (typeof window !== "undefined" && window.localStorage.getItem("resumeweave-form")) return "已从本机恢复";
+    return "";
+  });
   const [liveResearch, setLiveResearch] = useState<LiveResearchState>({ status: "idle", target: "" });
   const [editedDraft, setEditedDraft] = useState<ResumeDraft | null>(null);
   const [editedIdentity, setEditedIdentity] = useState<ResumeIdentity | null>(null);
@@ -687,8 +682,27 @@ export default function Home() {
   const coveredCount = jobRequirements.filter((item) => item.covered).length;
   const jobMatch = jobRequirements.length ? Math.round(coveredCount / jobRequirements.length * 100) : 0;
 
-  const update = (key: keyof FormData, value: string) => setForm((current) => ({ ...current, [key]: value }));
-  const loadSample = () => { setForm(candidateType === "student" ? STUDENT_SAMPLE_FORM : SAMPLE_FORM); setEditedDraft(null); setEditedIdentity(null); setStage("edit"); };
+  const persistForm = (next: FormData) => {
+    try {
+      window.localStorage.setItem("resumeweave-form", JSON.stringify(next));
+      setSavedAt("已保存在本机");
+    } catch {
+      setSavedAt("");
+    }
+  };
+  const update = (key: keyof FormData, value: string) => {
+    const next = { ...form, [key]: value };
+    setForm(next);
+    persistForm(next);
+  };
+  const loadSample = () => {
+    const next = candidateType === "student" ? STUDENT_SAMPLE_FORM : SAMPLE_FORM;
+    setForm(next);
+    persistForm(next);
+    setEditedDraft(null);
+    setEditedIdentity(null);
+    setStage("edit");
+  };
   const hasStudentMaterial = Boolean(form.material.trim() || form.education.trim() || form.skills.trim());
   const canGenerate = Boolean(form.target.trim() && (candidateType === "student" ? hasStudentMaterial : form.material.trim()));
   const researchLiveRole = async (target: string) => {
@@ -761,7 +775,7 @@ export default function Home() {
     <main>
       <nav className="nav shell" aria-label="主导航">
         <a className="brand" href="#top"><span className="brand-mark">W</span><span>ResumeWeave</span></a>
-        <div className="nav-steps" aria-label="制作步骤"><span className={stage === "edit" ? "active" : "done"}>1 填写素材</span><i /><span className={stage === "preview" ? "active" : ""}>2 生成简历</span></div>
+        <div className="nav-steps" aria-label="制作步骤"><span className={stage === "edit" ? "active" : "done"}>1 填写素材</span><i /><span className={stage === "working" ? "active" : stage === "preview" ? "done" : ""}>2 整理表达</span><i /><span className={stage === "preview" ? "active" : ""}>3 预览导出</span></div>
       </nav>
 
       <section className="hero shell" id="top">
@@ -769,12 +783,19 @@ export default function Home() {
         <h1>把零散经历，织成一份<em>好简历</em>。</h1>
         <p className="hero-copy">无论你是应届生还是已有工作经验，只需写下目标岗位和做过的事情。我们会直接整理措辞、突出成果，生成一份结构完整的简历。</p>
         <div className="trust-row"><span>直接写成完整简历</span><i /><span>自动整理表达</span><i /><span>真实不杜撰</span><i /><span>可下载 PDF</span></div>
+        <div className="hero-workflow" aria-label="制作流程">
+          <div className="workflow-step"><span>01</span><div><b>写下经历</b><small>项目、工作、技能都可以</small></div></div>
+          <i aria-hidden="true">→</i>
+          <div className="workflow-step"><span>02</span><div><b>整理表达</b><small>突出动作、成果和岗位匹配</small></div></div>
+          <i aria-hidden="true">→</i>
+          <div className="workflow-step"><span>03</span><div><b>编辑并导出</b><small>实时预览，下载 PDF</small></div></div>
+        </div>
       </section>
 
       <section className="builder shell" aria-label="简历生成表单">
         <header className="builder-heading">
           <div><span className="section-number">01</span><h2>选择你的求职阶段</h2></div>
-          <button className="sample-button" type="button" onClick={loadSample}>不知道怎么写？填入{candidateType === "student" ? "应届生" : "职场"}示例</button>
+          <div className="builder-meta"><span className="local-badge"><span />无需注册</span><button className="sample-button" type="button" onClick={loadSample}>不知道怎么写？填入{candidateType === "student" ? "应届生" : "职场"}示例</button></div>
         </header>
 
         <div className="candidate-switch" aria-label="求职身份">
@@ -806,7 +827,7 @@ export default function Home() {
         </div>
 
         <div className="builder-action">
-          <p><span>✦</span> 我们不会凭空捏造经历；缺少的结果会用【待补充】标记</p>
+          <div className="action-notes"><p><span>✦</span> 我们不会凭空捏造经历；缺少的结果会用【待补充】标记</p><small>{savedAt || "内容只保存在当前浏览器"}</small></div>
           <button className="primary-button" type="button" onClick={generate} disabled={!canGenerate || stage === "working"}>
             {stage === "working" ? <><span className="spinner" />正在帮你写简历</> : <>直接帮我写简历 <span>→</span></>}
           </button>
@@ -820,6 +841,15 @@ export default function Home() {
             <div className="preview-actions"><button type="button" onClick={copyAll}>{copied ? "已复制 ✓" : "复制文字"}</button><button className="download-button" type="button" onClick={downloadPdf} disabled={exporting}>{exporting ? "正在生成 PDF…" : "下载 PDF"}</button></div>
           </header>
           {exportError && <p className="export-error" role="alert">{exportError}</p>}
+
+          {form.target.trim() && <section className="job-match-panel" aria-label="目标岗位匹配提示">
+            <header>
+              <div><span className="match-source"><i />岗位匹配提示</span><h3>{activeProfile ? `${activeProfile.role}通常看重什么` : "先看看目标岗位需要什么"}</h3><p>把岗位要求和你已经写下的内容放在一起看，方便优先补强最关键的证据。</p></div>
+              <div className="match-score"><b>{jobRequirements.length ? `${jobMatch}%` : "—"}</b><span>{jobRequirements.length ? "已覆盖" : "待分析"}</span><small>{jobRequirements.length ? `${coveredCount}/${jobRequirements.length} 条要求` : "可更新公开岗位"}</small></div>
+            </header>
+            {priorityRequirements.length > 0 ? <div className="priority-list">{priorityRequirements.map((item, index) => <article className={item.covered ? "covered" : ""} key={item.label}><span className="priority-number">0{index + 1}</span><h4>{item.label}<small>{item.covered ? "已有证据" : "建议补充"}</small></h4><p>{item.covered ? "你的素材中已经出现相关线索，生成后请补充具体数字或结果。" : item.evidence}</p></article>)}</div> : <div className="no-requirements"><b>还没有足够的岗位信息</b><p>可以先继续生成；也可以点击下方按钮，按公开招聘信息更新一次。</p></div>}
+            <footer><span>这是一份基于公开信息的写作提示，不代表录用承诺。</span><button className="research-retry" type="button" onClick={() => researchLiveRole(form.target.trim())} disabled={liveResearch.status === "loading"}>{liveResearch.status === "loading" ? "正在搜索…" : "按最新公开岗位更新"}</button></footer>
+          </section>}
 
           <div className="edit-hint"><b>生成后仍可修改</b><span>点击下方简历中的姓名、简介、经历、教育或技能即可直接编辑；下载 PDF 会使用修改后的内容。</span></div>
 
