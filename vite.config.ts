@@ -14,6 +14,13 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const localBindingConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
+  ratelimits: [
+    {
+      name: "RESUME_TAILOR_LIMITER",
+      namespace_id: "7010142026",
+      simple: { limit: 10, period: 60 as const },
+    },
+  ],
   d1_databases: d1
     ? [
         {
@@ -44,6 +51,9 @@ export default defineConfig(async () => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
+    define: {
+      "import.meta.env.VITE_RESUME_TAILOR_API_AVAILABLE": JSON.stringify(true),
+    },
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,
