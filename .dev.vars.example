@@ -1,0 +1,2 @@
+RESUME_AI_BASE_URL="http://127.0.0.1:11434/v1"
+RESUME_AI_MODEL="qwen3:4b"
